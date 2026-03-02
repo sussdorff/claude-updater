@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from claude_updater.adapters.beads_cli import BeadsCliAdapter
 from claude_updater.adapters.beads_plugin import BeadsPluginAdapter
 from claude_updater.adapters.claude_code import ClaudeCodeAdapter
 from claude_updater.adapters.claude_mem import ClaudeMemAdapter
@@ -11,7 +10,6 @@ from claude_updater.adapters.dolt import DoltAdapter
 ADAPTER_REGISTRY: dict[str, type] = {
     "claude_code": ClaudeCodeAdapter,
     "claude_mem": ClaudeMemAdapter,
-    "beads_cli": BeadsCliAdapter,
     "beads_plugin": BeadsPluginAdapter,
     "dolt": DoltAdapter,
 }

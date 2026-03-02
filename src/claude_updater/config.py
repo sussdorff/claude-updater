@@ -22,9 +22,6 @@ enabled = true
 enabled = true
 plugin_dir = "~/.claude/plugins/marketplaces/thedotmack"
 
-[adapters.beads_cli]
-enabled = true
-
 [adapters.beads_plugin]
 enabled = true
 plugin_dir = "~/.claude/plugins/marketplaces/beads-marketplace"

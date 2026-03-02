@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from claude_updater.adapters.base import ToolAdapter, VersionInfo
+from claude_updater.adapters.base import ToolAdapter, VersionInfo, _extract_changelog_section
 from claude_updater.adapters.claude_code import ClaudeCodeAdapter
 from claude_updater.adapters.beads_cli import BeadsCliAdapter
 from claude_updater.adapters.dolt import DoltAdapter
@@ -138,6 +138,161 @@ class TestDoltAdapter:
         assert adapter.name == "dolt"
         assert adapter.key == "dolt"
         assert adapter.update_command == "brew upgrade dolt"
+
+
+class TestExtractChangelogSection:
+    def test_dolt_style_captures_intro_and_dolt_prs_only(self):
+        body = (
+            "This is a minor version bump.\n"
+            "\n"
+            "# Merged PRs\n"
+            "\n"
+            "## dolt\n"
+            "\n"
+            "* [123](https://github.com/dolthub/dolt/pull/123): Fix bug\n"
+            "* [124](https://github.com/dolthub/dolt/pull/124): Add feature\n"
+            "\n"
+            "## go-mysql-server\n"
+            "\n"
+            "* [456](https://github.com/dolthub/go-mysql-server/pull/456): GMS change\n"
+            "\n"
+            "# Closed Issues\n"
+            "\n"
+            "* [789](https://github.com/dolthub/dolt/issues/789): Some issue\n"
+        )
+        result = _extract_changelog_section(body)
+        assert "minor version bump" in result
+        assert "Fix bug" in result
+        assert "Add feature" in result
+        assert "GMS change" not in result
+        assert "Closed Issues" not in result
+        assert "Some issue" not in result
+
+    def test_dolt_style_without_dolt_subsection(self):
+        body = (
+            "Intro text here.\n"
+            "\n"
+            "# Merged PRs\n"
+            "\n"
+            "* [100](https://example.com/100): Direct PR\n"
+            "\n"
+            "# Closed Issues\n"
+        )
+        result = _extract_changelog_section(body)
+        assert "Intro text here" in result
+        # No ## dolt section, so no PR entries captured via dolt path
+        # but intro is still there
+
+    def test_standard_changelog_section(self):
+        body = (
+            "# Release 1.0\n"
+            "\n"
+            "## Changelog\n"
+            "\n"
+            "* Fixed login bug\n"
+            "* Added dark mode\n"
+            "\n"
+            "## Install\n"
+            "\n"
+            "Download from...\n"
+        )
+        result = _extract_changelog_section(body)
+        assert "Fixed login bug" in result
+        assert "Added dark mode" in result
+        assert "Download from" not in result
+
+    def test_fallback_to_bullet_points(self):
+        body = (
+            "Some release\n"
+            "\n"
+            "* Change one\n"
+            "* Change two\n"
+        )
+        result = _extract_changelog_section(body)
+        assert "Change one" in result
+        assert "Change two" in result
+
+    def test_strips_html_and_dependabot_noise(self):
+        body = (
+            "# Merged PRs\n"
+            "\n"
+            "## dolt\n"
+            "\n"
+            "* [10](https://example.com/10): Bump foo from 1.0 to 1.1\n"
+            "  Bumps [foo](https://example.com) from 1.0 to 1.1.\n"
+            "  <details>\n"
+            "  <summary>Commits</summary>\n"
+            "  <ul>\n"
+            "  <li>some commit</li>\n"
+            "  </ul>\n"
+            "  </details>\n"
+            "  <br />\n"
+            "  [![Badge](https://example.com/badge)]\n"
+            "  Dependabot will resolve any conflicts.\n"
+            "  [//]: # (dependabot-automerge-start)\n"
+            "  [//]: # (dependabot-automerge-end)\n"
+            "  ---\n"
+            "  - `@dependabot rebase` will rebase this PR\n"
+            "  - `@dependabot recreate` will recreate this PR\n"
+            "  - `@dependabot ignore this dependency`\n"
+            "* [20](https://example.com/20): Real change\n"
+        )
+        result = _extract_changelog_section(body)
+        assert "Bump foo" in result
+        assert "<details>" not in result
+        assert "@dependabot" not in result
+        assert "Badge" not in result
+        assert "Real change" in result
+
+    def test_strips_code_blocks(self):
+        body = (
+            "# Merged PRs\n"
+            "\n"
+            "## dolt\n"
+            "\n"
+            "* [10](https://example.com/10): Optimize function\n"
+            "  This optimizes the function.\n"
+            "  ```\n"
+            "  BenchmarkOld    100    500 ns/op\n"
+            "  ```\n"
+            "  ```\n"
+            "  BenchmarkNew    200    250 ns/op\n"
+            "  ```\n"
+            "* [20](https://example.com/20): Another PR\n"
+        )
+        result = _extract_changelog_section(body)
+        assert "Optimize function" in result
+        assert "BenchmarkOld" not in result
+        assert "BenchmarkNew" not in result
+        assert "Another PR" in result
+
+    def test_condenses_pr_descriptions(self):
+        body = (
+            "# Merged PRs\n"
+            "\n"
+            "## dolt\n"
+            "\n"
+            "* [10](https://example.com/10): Add feature X\n"
+            "  First line of description.\n"
+            "  Second line should be dropped.\n"
+            "  Third line should be dropped.\n"
+            "* [20](https://example.com/20): Fix bug Y\n"
+        )
+        result = _extract_changelog_section(body)
+        assert "Add feature X" in result
+        assert "First line of description" in result
+        assert "Second line" not in result
+        assert "Third line" not in result
+        assert "Fix bug Y" in result
+
+    def test_truncation_at_30_lines(self):
+        lines = ["Intro.\n", "\n", "# Merged PRs\n", "\n", "## dolt\n"]
+        for i in range(40):
+            lines.append(f"* [{i}](https://example.com/{i}): PR {i}\n")
+        lines.append("\n## go-mysql-server\n")
+        body = "".join(lines)
+        result = _extract_changelog_section(body)
+        assert "..." in result
 
 
 class TestToolAdapterBase:
