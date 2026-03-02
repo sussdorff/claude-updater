@@ -192,7 +192,6 @@ class TestReleaseNotesCacheSorting:
 MINIMAL_CONFIG = {
     "general": {"cache_ttl": 86400},
     "adapters": {},
-    "ai_analysis": {"enabled": False},
 }
 
 
@@ -402,7 +401,6 @@ class TestCLIReleaseNotesArgs:
         rn_p.add_argument("--days", type=int, default=3)
         rn_p.add_argument("--tool", type=str, default=None)
         rn_p.add_argument("--json", action="store_true")
-        rn_p.add_argument("--ai-summary", action="store_true")
         return parser.parse_args(argv)
 
     def test_default_days_is_3(self):
@@ -429,26 +427,17 @@ class TestCLIReleaseNotesArgs:
         args = self._parse(["release-notes", "--json"])
         assert args.json is True
 
-    def test_ai_summary_flag_defaults_to_false(self):
-        args = self._parse(["release-notes"])
-        assert args.ai_summary is False
-
-    def test_ai_summary_flag_set(self):
-        args = self._parse(["release-notes", "--ai-summary"])
-        assert args.ai_summary is True
-
     def test_cmd_release_notes_forwards_args_to_runner(self, tmp_cache, monkeypatch):
         """cmd_release_notes passes all parsed args to run_release_notes."""
         import argparse
 
         calls = []
 
-        def fake_run_release_notes(config, days, tool_filter, json_output, ai_summary):
+        def fake_run_release_notes(config, days, tool_filter, json_output):
             calls.append({
                 "days": days,
                 "tool_filter": tool_filter,
                 "json_output": json_output,
-                "ai_summary": ai_summary,
             })
             return {}
 
@@ -456,7 +445,7 @@ class TestCLIReleaseNotesArgs:
 
         from claude_updater.cli import cmd_release_notes
 
-        args = argparse.Namespace(days=14, tool="my_tool", json=True, ai_summary=False)
+        args = argparse.Namespace(days=14, tool="my_tool", json=True)
         # load_config is imported inside cmd_release_notes, so patch it at its
         # source module rather than via the cli namespace.
         with patch("claude_updater.config.load_config", return_value=MINIMAL_CONFIG):
@@ -466,4 +455,3 @@ class TestCLIReleaseNotesArgs:
         assert calls[0]["days"] == 14
         assert calls[0]["tool_filter"] == "my_tool"
         assert calls[0]["json_output"] is True
-        assert calls[0]["ai_summary"] is False

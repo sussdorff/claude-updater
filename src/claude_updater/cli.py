@@ -34,7 +34,6 @@ def cmd_release_notes(args: argparse.Namespace) -> None:
         days=args.days,
         tool_filter=args.tool,
         json_output=args.json,
-        ai_summary=args.ai_summary,
     )
 
 
@@ -100,7 +99,6 @@ def main() -> None:
     rn_p.add_argument("--days", type=int, default=3, help="Time window in days (default: 3)")
     rn_p.add_argument("--tool", type=str, default=None, help="Filter to a specific tool")
     rn_p.add_argument("--json", action="store_true", help="JSON output for piping")
-    rn_p.add_argument("--ai-summary", action="store_true", help="Include AI summary (slow)")
     rn_p.set_defaults(func=cmd_release_notes)
 
     # update

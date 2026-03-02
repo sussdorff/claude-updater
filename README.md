@@ -57,15 +57,6 @@ claude-updater config show
 cache_ttl = 86400          # 24h cache TTL in seconds
 check_on_startup = true
 
-[ai_analysis]
-enabled = true
-api_base = "https://openrouter.ai/api/v1"
-model = "anthropic/claude-3.5-haiku"
-# API key: pick one method
-api_key_cmd = "op read 'op://API Keys/OpenRouter/credential'"
-# api_key = "sk-or-v1-..."
-# api_key_env = "OPENROUTER_API_KEY"
-
 [adapters.claude_code]
 enabled = true
 

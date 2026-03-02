@@ -1,4 +1,4 @@
-"""Orchestrator: parallel collect → display → AI analysis → prompt → apply."""
+"""Orchestrator: parallel collect → display → prompt → apply."""
 
 from __future__ import annotations
 
@@ -16,7 +16,6 @@ from claude_updater.display import (
     BLUE,
     GREEN,
     NC,
-    display_analysis,
     display_changelogs,
     display_release_notes,
     display_summary,
@@ -75,20 +74,6 @@ def _fetch_changelogs(
                 info.changelog_delta = delta
 
     return changelogs
-
-
-def _run_ai_analysis(changelogs: dict[str, str], config: dict) -> None:
-    """Run AI analysis on changelogs if configured."""
-    ai_config = config.get("ai_analysis", {})
-    if not ai_config.get("enabled") or not changelogs:
-        return
-    try:
-        from claude_updater.analyzer import analyze_changelogs
-        analysis = analyze_changelogs(changelogs, ai_config)
-        if analysis:
-            display_analysis(analysis)
-    except Exception:
-        pass
 
 
 def run_check(
@@ -159,7 +144,6 @@ def run_check(
         changelogs = _fetch_changelogs(results, config)
         if changelogs:
             display_changelogs(results)
-            _run_ai_analysis(changelogs, config)
 
     return results
 
@@ -221,7 +205,6 @@ def run_release_notes(
     days: int = 3,
     tool_filter: str | None = None,
     json_output: bool = False,
-    ai_summary: bool = False,
 ) -> dict[str, list[dict]]:
     """Fetch and display release notes for all enabled adapters."""
     if config is None:
@@ -263,13 +246,5 @@ def run_release_notes(
         print(json.dumps(output, indent=2))
     else:
         display_release_notes(filtered, adapter_names, days)
-
-    if ai_summary and filtered:
-        changelogs = {}
-        for key, releases in filtered.items():
-            name = adapter_names.get(key, key)
-            parts = [f"### {r['version']} ({r['date']})\n{r['body']}" for r in releases]
-            changelogs[name] = "\n\n".join(parts)
-        _run_ai_analysis(changelogs, config)
 
     return filtered

@@ -5,9 +5,7 @@ description = "Multi-tool update checker for the Claude Code ecosystem"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"
-dependencies = [
-    "openai>=1.60.0",
-]
+dependencies = []
 keywords = ["claude-code", "updater", "mcp", "plugins"]
 classifiers = [
     "Development Status :: 3 - Alpha",

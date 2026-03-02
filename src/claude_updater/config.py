@@ -6,15 +6,6 @@ DEFAULT_CONFIG = """\
 [general]
 cache_ttl = 86400
 check_on_startup = true
-
-[ai_analysis]
-enabled = false
-api_base = "https://openrouter.ai/api/v1"
-model = "anthropic/claude-3.5-haiku"
-# api_key_cmd = "op read 'op://API Keys/OpenRouter/credential'"
-# api_key = "sk-..."
-# api_key_env = "OPENROUTER_API_KEY"
-
 [adapters.claude_updater_self]
 enabled = true
 

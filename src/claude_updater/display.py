@@ -90,15 +90,6 @@ def display_release_notes(
     print(f"{DIM}{'─' * 40}{NC}")
 
 
-def display_analysis(analysis: str) -> None:
-    """Display AI changelog analysis."""
-    print()
-    print(f"{BOLD}AI Analysis{NC}")
-    print(f"{DIM}{'─' * 40}{NC}")
-    print(analysis)
-    print(f"{DIM}{'─' * 40}{NC}")
-
-
 def prompt_for_update(timeout: int = 15) -> str:
     """Ask user whether to apply updates. Returns 'yes', 'no', or 'later'."""
     if not sys.stdin.isatty():
