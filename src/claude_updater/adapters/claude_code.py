@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import subprocess
 
-from claude_updater.adapters.base import ToolAdapter, VersionInfo
+from claude_updater.adapters.base import ReleaseInfo, ToolAdapter, VersionInfo, gh_get_releases
 
 
 class ClaudeCodeAdapter(ToolAdapter):
@@ -81,6 +81,9 @@ class ClaudeCodeAdapter(ToolAdapter):
             return "\n".join(changelog_parts)
         except (subprocess.TimeoutExpired, FileNotFoundError):
             return ""
+
+    def get_releases(self, limit: int = 5) -> list[ReleaseInfo]:
+        return gh_get_releases("anthropics/claude-code", limit)
 
     def apply_update(self) -> bool:
         # Claude Code has auto-update; we just inform the user

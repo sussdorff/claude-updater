@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import subprocess
 
-from claude_updater.adapters.base import ToolAdapter, gh_changelog_delta
+from claude_updater.adapters.base import ReleaseInfo, ToolAdapter, gh_changelog_delta, gh_get_releases
 
 
 class BeadsCliAdapter(ToolAdapter):
@@ -48,6 +48,9 @@ class BeadsCliAdapter(ToolAdapter):
             return ""
         except (subprocess.TimeoutExpired, FileNotFoundError, json.JSONDecodeError, KeyError, IndexError):
             return ""
+
+    def get_releases(self, limit: int = 5) -> list[ReleaseInfo]:
+        return gh_get_releases("steveyegge/beads", limit)
 
     def get_changelog_delta(self, from_ver: str, to_ver: str) -> str:
         return gh_changelog_delta("steveyegge/beads", from_ver, to_ver)

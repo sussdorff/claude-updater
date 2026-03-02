@@ -51,3 +51,49 @@ class VersionCache:
         path = self.cache_path
         if path.exists():
             path.unlink()
+
+
+class ReleaseNotesCache:
+    """Append-only cache for release notes per tool."""
+
+    @property
+    def cache_dir(self) -> Path:
+        xdg = os.environ.get("XDG_CACHE_HOME")
+        if xdg:
+            base = Path(xdg)
+        else:
+            base = Path.home() / ".cache"
+        return base / "claude-updater" / "release-notes"
+
+    def _tool_path(self, tool_key: str) -> Path:
+        return self.cache_dir / f"{tool_key}.json"
+
+    def read(self, tool_key: str) -> list[dict]:
+        path = self._tool_path(tool_key)
+        if not path.exists():
+            return []
+        try:
+            with open(path) as f:
+                return json.load(f)
+        except (json.JSONDecodeError, OSError):
+            return []
+
+    def write(self, tool_key: str, releases: list[dict]) -> None:
+        path = self._tool_path(tool_key)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "w") as f:
+            json.dump(releases, f, indent=2)
+
+    def merge(self, tool_key: str, new_releases: list[dict]) -> list[dict]:
+        """Merge new releases into cache. Append-only: keeps old entries, adds new ones."""
+        existing = self.read(tool_key)
+        existing_versions = {r["version"] for r in existing}
+        merged = list(existing)
+        for release in new_releases:
+            if release["version"] not in existing_versions:
+                merged.append(release)
+                existing_versions.add(release["version"])
+        # Sort by date descending, then version
+        merged.sort(key=lambda r: r.get("date", ""), reverse=True)
+        self.write(tool_key, merged)
+        return merged

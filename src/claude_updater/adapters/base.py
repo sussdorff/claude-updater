@@ -18,6 +18,13 @@ class VersionInfo:
     changelog_delta: str = ""
 
 
+@dataclass
+class ReleaseInfo:
+    version: str
+    date: str  # ISO format YYYY-MM-DD
+    body: str
+
+
 class ToolAdapter(ABC):
     def __init__(self) -> None:
         self._settings: dict = {}
@@ -41,6 +48,13 @@ class ToolAdapter(ABC):
 
     @abstractmethod
     def apply_update(self) -> bool: ...
+
+    def get_releases(self, limit: int = 5) -> list[ReleaseInfo]:
+        """Return recent releases with version, date, and body.
+
+        Override in subclasses. Default returns empty list.
+        """
+        return []
 
     @property
     def update_command(self) -> str:
@@ -66,6 +80,29 @@ class ToolAdapter(ABC):
 
     def configure(self, settings: dict) -> None:
         self._settings = settings
+
+
+def gh_get_releases(repo: str, limit: int = 5) -> list[ReleaseInfo]:
+    """Fetch recent releases from a GitHub repo via gh API."""
+    try:
+        r = subprocess.run(
+            ["gh", "api", f"repos/{repo}/releases",
+             "--jq", f'[.[:{ limit}][] | {{tag: .tag_name, date: .published_at, body: .body}}]'],
+            capture_output=True, text=True, timeout=30,
+        )
+        if r.returncode != 0:
+            return []
+
+        entries = json.loads(r.stdout)
+        releases = []
+        for entry in entries:
+            version = entry["tag"].lstrip("v")
+            date = entry["date"][:10] if entry.get("date") else ""
+            body = _extract_changelog_section(entry.get("body", ""))
+            releases.append(ReleaseInfo(version=version, date=date, body=body))
+        return releases
+    except (subprocess.TimeoutExpired, FileNotFoundError, json.JSONDecodeError):
+        return []
 
 
 def gh_changelog_delta(repo: str, from_ver: str, to_ver: str) -> str:
@@ -160,3 +197,64 @@ def _extract_changelog_section(body: str) -> str:
         result.append("  ...")
 
     return "\n".join(result).strip()
+
+
+def changelog_get_releases(changelog_path: str, git_dir: str, limit: int = 5) -> list[ReleaseInfo]:
+    """Parse a CHANGELOG.md file into ReleaseInfo entries.
+
+    Uses git log to find commit dates for version headings.
+    """
+    from pathlib import Path
+
+    path = Path(changelog_path)
+    if not path.exists():
+        return []
+
+    try:
+        text = path.read_text()
+    except OSError:
+        return []
+
+    # Parse sections: ## [version] or ## version
+    releases: list[ReleaseInfo] = []
+    current_version = ""
+    current_lines: list[str] = []
+
+    for line in text.splitlines():
+        match = re.match(r"^##\s+\[?v?(\d+\.\d+[^\]]*)\]?", line)
+        if match:
+            if current_version:
+                releases.append(ReleaseInfo(
+                    version=current_version,
+                    date="",
+                    body="\n".join(current_lines).strip(),
+                ))
+                if len(releases) >= limit:
+                    break
+            current_version = match.group(1)
+            current_lines = []
+        elif current_version:
+            current_lines.append(line)
+
+    # Don't forget the last section
+    if current_version and len(releases) < limit:
+        releases.append(ReleaseInfo(
+            version=current_version,
+            date="",
+            body="\n".join(current_lines).strip(),
+        ))
+
+    # Try to get dates from git log for each version
+    for release in releases:
+        try:
+            r = subprocess.run(
+                ["git", "-C", git_dir, "log", "--all", "--format=%aI",
+                 f"--grep=v{release.version}", "-1"],
+                capture_output=True, text=True, timeout=10,
+            )
+            if r.returncode == 0 and r.stdout.strip():
+                release.date = r.stdout.strip()[:10]
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            pass
+
+    return releases

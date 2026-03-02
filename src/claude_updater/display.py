@@ -65,6 +65,31 @@ def display_changelogs(results: list[VersionInfo]) -> None:
         print(f"{DIM}{'─' * 40}{NC}")
 
 
+def display_release_notes(
+    filtered: dict[str, list[dict]],
+    adapter_names: dict[str, str],
+    days: int,
+) -> None:
+    """Display release notes grouped by tool."""
+    if not filtered:
+        print(f"\n{DIM}No release notes found for the last {days} day(s).{NC}")
+        return
+
+    print()
+    print(f"{BOLD}Release Notes{NC} {DIM}(last {days} day{'s' if days != 1 else ''}){NC}")
+
+    for key, releases in filtered.items():
+        name = adapter_names.get(key, key)
+        print(f"{DIM}{'─' * 40}{NC}")
+        print(f"{CYAN}{name}{NC}")
+        for release in releases:
+            print(f"\n  {BOLD}{release['version']}{NC} {DIM}({release.get('date', '?')}){NC}")
+            if release.get("body"):
+                for line in release["body"].splitlines():
+                    print(f"  {line}")
+    print(f"{DIM}{'─' * 40}{NC}")
+
+
 def display_analysis(analysis: str) -> None:
     """Display AI changelog analysis."""
     print()

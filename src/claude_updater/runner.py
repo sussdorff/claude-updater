@@ -6,10 +6,11 @@ import json
 import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime, timedelta
 
 from claude_updater.adapters import get_enabled_adapters
 from claude_updater.adapters.base import ToolAdapter, VersionInfo
-from claude_updater.cache import VersionCache
+from claude_updater.cache import ReleaseNotesCache, VersionCache
 from claude_updater.config import load_config
 from claude_updater.display import (
     BLUE,
@@ -17,6 +18,7 @@ from claude_updater.display import (
     NC,
     display_analysis,
     display_changelogs,
+    display_release_notes,
     display_summary,
     prompt_for_update,
     warn_running_instances,
@@ -197,3 +199,77 @@ def run_update(config: dict | None = None, auto_yes: bool = False) -> None:
                 print(f"Failed to update {info.tool_name}", file=sys.stderr)
 
     warn_running_instances()
+
+
+def _fetch_releases(adapter: ToolAdapter, cache: ReleaseNotesCache) -> tuple[str, list[dict]]:
+    """Fetch releases for a single adapter and merge into cache."""
+    try:
+        releases = adapter.get_releases(limit=5)
+        new_entries = [
+            {"version": r.version, "date": r.date, "body": r.body}
+            for r in releases
+        ]
+        merged = cache.merge(adapter.key, new_entries)
+        return adapter.key, merged
+    except Exception:
+        # Fall back to cached data
+        return adapter.key, cache.read(adapter.key)
+
+
+def run_release_notes(
+    config: dict | None = None,
+    days: int = 3,
+    tool_filter: str | None = None,
+    json_output: bool = False,
+    ai_summary: bool = False,
+) -> dict[str, list[dict]]:
+    """Fetch and display release notes for all enabled adapters."""
+    if config is None:
+        config = load_config()
+
+    adapters = get_enabled_adapters(config)
+    if tool_filter:
+        adapters = [a for a in adapters if a.key == tool_filter or a.name.lower() == tool_filter.lower()]
+        if not adapters:
+            print(f"Unknown tool: {tool_filter}", file=sys.stderr)
+            sys.exit(1)
+
+    cache = ReleaseNotesCache()
+
+    # Parallel fetch
+    all_releases: dict[str, list[dict]] = {}
+    adapter_names: dict[str, str] = {}
+    with ThreadPoolExecutor(max_workers=len(adapters)) as pool:
+        futures = {pool.submit(_fetch_releases, a, cache): a for a in adapters}
+        for future in as_completed(futures):
+            adapter = futures[future]
+            key, releases = future.result()
+            all_releases[key] = releases
+            adapter_names[key] = adapter.name
+
+    # Filter by date
+    cutoff = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+    filtered: dict[str, list[dict]] = {}
+    for key, releases in all_releases.items():
+        recent = [r for r in releases if r.get("date", "") >= cutoff]
+        if recent:
+            filtered[key] = recent
+
+    if json_output:
+        output = {
+            adapter_names.get(k, k): releases
+            for k, releases in filtered.items()
+        }
+        print(json.dumps(output, indent=2))
+    else:
+        display_release_notes(filtered, adapter_names, days)
+
+    if ai_summary and filtered:
+        changelogs = {}
+        for key, releases in filtered.items():
+            name = adapter_names.get(key, key)
+            parts = [f"### {r['version']} ({r['date']})\n{r['body']}" for r in releases]
+            changelogs[name] = "\n\n".join(parts)
+        _run_ai_analysis(changelogs, config)
+
+    return filtered

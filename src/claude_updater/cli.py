@@ -24,6 +24,20 @@ def cmd_update(args: argparse.Namespace) -> None:
     run_update(config, auto_yes=args.yes)
 
 
+def cmd_release_notes(args: argparse.Namespace) -> None:
+    from claude_updater.config import load_config
+    from claude_updater.runner import run_release_notes
+
+    config = load_config()
+    run_release_notes(
+        config,
+        days=args.days,
+        tool_filter=args.tool,
+        json_output=args.json,
+        ai_summary=args.ai_summary,
+    )
+
+
 def cmd_config_init(args: argparse.Namespace) -> None:
     from claude_updater.config import init_config
 
@@ -80,6 +94,14 @@ def main() -> None:
     check_p.add_argument("--json", action="store_true", help="JSON output")
     check_p.add_argument("--notes", action="store_true", help="Show release notes for available updates")
     check_p.set_defaults(func=cmd_check)
+
+    # release-notes
+    rn_p = sub.add_parser("release-notes", help="Browse release notes with date filtering")
+    rn_p.add_argument("--days", type=int, default=3, help="Time window in days (default: 3)")
+    rn_p.add_argument("--tool", type=str, default=None, help="Filter to a specific tool")
+    rn_p.add_argument("--json", action="store_true", help="JSON output for piping")
+    rn_p.add_argument("--ai-summary", action="store_true", help="Include AI summary (slow)")
+    rn_p.set_defaults(func=cmd_release_notes)
 
     # update
     update_p = sub.add_parser("update", help="Check and apply updates")

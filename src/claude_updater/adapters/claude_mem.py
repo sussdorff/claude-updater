@@ -6,7 +6,7 @@ import json
 import subprocess
 from pathlib import Path
 
-from claude_updater.adapters.base import ToolAdapter
+from claude_updater.adapters.base import ReleaseInfo, ToolAdapter, changelog_get_releases
 
 
 class ClaudeMemAdapter(ToolAdapter):
@@ -83,6 +83,10 @@ class ClaudeMemAdapter(ToolAdapter):
             return "\n".join(result)
         except OSError:
             return ""
+
+    def get_releases(self, limit: int = 5) -> list[ReleaseInfo]:
+        changelog = self._plugin_dir / "CHANGELOG.md"
+        return changelog_get_releases(str(changelog), str(self._plugin_dir), limit)
 
     def apply_update(self) -> bool:
         try:
