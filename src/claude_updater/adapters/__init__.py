@@ -5,9 +5,11 @@ from __future__ import annotations
 from claude_updater.adapters.beads_plugin import BeadsPluginAdapter
 from claude_updater.adapters.claude_code import ClaudeCodeAdapter
 from claude_updater.adapters.claude_mem import ClaudeMemAdapter
+from claude_updater.adapters.claude_updater import ClaudeUpdaterAdapter
 from claude_updater.adapters.dolt import DoltAdapter
 
 ADAPTER_REGISTRY: dict[str, type] = {
+    "claude_updater_self": ClaudeUpdaterAdapter,
     "claude_code": ClaudeCodeAdapter,
     "claude_mem": ClaudeMemAdapter,
     "beads_plugin": BeadsPluginAdapter,

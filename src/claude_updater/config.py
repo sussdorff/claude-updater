@@ -15,6 +15,9 @@ model = "anthropic/claude-3.5-haiku"
 # api_key = "sk-..."
 # api_key_env = "OPENROUTER_API_KEY"
 
+[adapters.claude_updater_self]
+enabled = true
+
 [adapters.claude_code]
 enabled = true
 
