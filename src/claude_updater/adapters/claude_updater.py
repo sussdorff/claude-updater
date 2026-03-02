@@ -24,7 +24,8 @@ class ClaudeUpdaterAdapter(ToolAdapter):
         return "uv tool upgrade claude-updater"
 
     def get_installed_version(self) -> str:
-        return __version__
+        # Normalize CalVer: "2026.03.2" → "2026.3.2" to match PyPI normalization
+        return ".".join(str(int(p)) if p.isdigit() else p for p in __version__.split("."))
 
     def get_latest_version(self) -> str:
         try:
