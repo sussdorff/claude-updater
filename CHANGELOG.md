@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Add release-notes subcommand with date filtering and cache
+
+### Documentation
+
+- Update changelog
+
 ### Maintenance
 
 - Add beads prime directive and agents instructions
@@ -13,6 +21,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Bd
 
 - Backup 2026-03-02 08:34
+- Backup 2026-03-02 08:54
 
 ## [0.3.1] - 2026-03-02
 
