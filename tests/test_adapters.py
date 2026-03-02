@@ -79,10 +79,9 @@ class TestClaudeCodeAdapter:
 class TestBeadsCliAdapter:
     def test_get_installed_version(self):
         adapter = BeadsCliAdapter()
+        brew_json = json.dumps({"formulae": [{"linked_keg": "0.55.4", "versions": {"stable": "0.57.0"}}]})
         with patch("subprocess.run") as mock:
-            mock.return_value = MagicMock(
-                stdout="beads 0.55.4\n", returncode=0
-            )
+            mock.return_value = MagicMock(stdout=brew_json, returncode=0)
             assert adapter.get_installed_version() == "0.55.4"
 
     def test_get_latest_version(self):
@@ -108,10 +107,9 @@ class TestBeadsCliAdapter:
 class TestDoltAdapter:
     def test_get_installed_version(self):
         adapter = DoltAdapter()
+        brew_json = json.dumps({"formulae": [{"linked_keg": "1.82.6", "versions": {"stable": "1.83.0"}}]})
         with patch("subprocess.run") as mock:
-            mock.return_value = MagicMock(
-                stdout="dolt 1.82.6\n", returncode=0
-            )
+            mock.return_value = MagicMock(stdout=brew_json, returncode=0)
             assert adapter.get_installed_version() == "1.82.6"
 
     def test_get_latest_version(self):

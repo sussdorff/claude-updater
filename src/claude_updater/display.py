@@ -38,10 +38,7 @@ def display_summary(results: list[VersionInfo]) -> bool:
 
         if info.has_update:
             has_updates = True
-            if info.latest_version == "update-available":
-                print(f"{YELLOW}●{NC} {info.tool_name}: {info.installed_version} {DIM}(update available){NC}")
-            else:
-                print(f"{YELLOW}●{NC} {info.tool_name}: {info.installed_version} → {info.latest_version}")
+            print(f"{YELLOW}●{NC} {info.tool_name}: {info.installed_version} → {info.latest_version}")
         else:
             print(f"{GREEN}✓{NC} {info.tool_name}: {info.installed_version}")
 

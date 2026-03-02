@@ -6,7 +6,7 @@ import json
 import subprocess
 from pathlib import Path
 
-from claude_updater.adapters.base import ToolAdapter, VersionInfo
+from claude_updater.adapters.base import ToolAdapter
 
 
 class BeadsPluginAdapter(ToolAdapter):
@@ -41,22 +41,28 @@ class BeadsPluginAdapter(ToolAdapter):
             return ""
 
     def get_latest_version(self) -> str:
-        if self._has_remote_changes():
-            return "update-available"
-        return self.get_installed_version()
-
-    def _has_remote_changes(self) -> bool:
+        plugin_dir = str(self._plugin_dir)
+        # Fetch remote to update tracking refs
         try:
-            r = subprocess.run(
-                ["git", "-C", str(self._plugin_dir), "fetch", "--dry-run"],
+            subprocess.run(
+                ["git", "-C", plugin_dir, "fetch", "origin"],
                 capture_output=True, text=True, timeout=15,
             )
-            return bool(r.stderr.strip())
         except (subprocess.TimeoutExpired, FileNotFoundError):
-            return False
+            return self.get_installed_version()
 
-    def has_update(self) -> bool:
-        return self._has_remote_changes()
+        # Read version from remote's plugin.json
+        try:
+            r = subprocess.run(
+                ["git", "-C", plugin_dir, "show",
+                 "origin/main:claude-plugin/.claude-plugin/plugin.json"],
+                capture_output=True, text=True, timeout=10,
+            )
+            if r.returncode == 0:
+                return json.loads(r.stdout).get("version", "")
+        except (subprocess.TimeoutExpired, FileNotFoundError, json.JSONDecodeError):
+            pass
+        return self.get_installed_version()
 
     def get_changelog_delta(self, from_ver: str, to_ver: str) -> str:
         changelog = self._plugin_dir / "CHANGELOG.md"
@@ -92,14 +98,3 @@ class BeadsPluginAdapter(ToolAdapter):
         except (subprocess.TimeoutExpired, FileNotFoundError):
             return False
 
-    def check_status(self) -> VersionInfo:
-        installed = self.get_installed_version()
-        update = self.has_update()
-        return VersionInfo(
-            tool_name=self.name,
-            key=self.key,
-            installed_version=installed,
-            latest_version="update-available" if update else installed,
-            has_update=update,
-            update_method=self.update_command if update else "",
-        )

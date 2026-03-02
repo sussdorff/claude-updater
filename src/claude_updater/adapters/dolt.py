@@ -24,13 +24,16 @@ class DoltAdapter(ToolAdapter):
     def get_installed_version(self) -> str:
         try:
             r = subprocess.run(
-                ["brew", "list", "--versions", "dolt"],
-                capture_output=True, text=True, timeout=10,
+                ["brew", "info", "--json=v2", "dolt"],
+                capture_output=True, text=True, timeout=15,
             )
-            if r.returncode == 0 and r.stdout.strip():
-                return r.stdout.strip().split()[-1]
+            if r.returncode == 0:
+                data = json.loads(r.stdout)
+                linked = data["formulae"][0].get("linked_keg")
+                if linked:
+                    return linked
             return ""
-        except (subprocess.TimeoutExpired, FileNotFoundError):
+        except (subprocess.TimeoutExpired, FileNotFoundError, json.JSONDecodeError, KeyError, IndexError):
             return ""
 
     def get_latest_version(self) -> str:

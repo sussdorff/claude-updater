@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -19,6 +20,21 @@ from claude_updater.display import (
     prompt_for_update,
     warn_running_instances,
 )
+
+
+def _refresh_brew_index() -> None:
+    """Run 'brew update' to refresh the local formula index.
+
+    Without this, 'brew info --json=v2' returns stale version data
+    and brew-based adapters miss available updates.
+    """
+    try:
+        subprocess.run(
+            ["brew", "update"],
+            capture_output=True, text=True, timeout=60,
+        )
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        pass
 
 
 def _check_adapter(adapter: ToolAdapter) -> VersionInfo:
@@ -68,6 +84,9 @@ def run_check(
             return results
 
     adapters = get_enabled_adapters(config)
+
+    # Refresh Homebrew index so brew-based adapters see latest versions
+    _refresh_brew_index()
 
     # Parallel version checks
     results: list[VersionInfo] = []
