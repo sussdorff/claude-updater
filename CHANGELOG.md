@@ -4,6 +4,20 @@ All notable changes to claude-updater will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+
+- Remove unused AI summary feature
+
+### Documentation
+
+- Update changelog for v2026.03.1-3 releases
+
+### Bd
+
+- Backup 2026-03-02 14:52
+
 ## [2026.03.3] - 2026-03-02
 
 ### Fixed
