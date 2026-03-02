@@ -8,3 +8,7 @@ build/
 .pytest_cache/
 .ruff_cache/
 *.egg
+
+# Dolt database files (added by bd init)
+.dolt/
+*.db
