@@ -46,6 +46,25 @@ def display_summary(results: list[VersionInfo]) -> bool:
     return has_updates
 
 
+def display_changelogs(results: list[VersionInfo]) -> None:
+    """Display changelog deltas for tools with updates."""
+    shown = False
+    for info in results:
+        if info.has_update and info.changelog_delta:
+            if not shown:
+                print()
+                print(f"{BOLD}Release Notes{NC}")
+                shown = True
+            print(f"{DIM}{'─' * 40}{NC}")
+            print(f"{CYAN}{info.tool_name}{NC} {info.installed_version} → {info.latest_version}")
+            print()
+            # Indent and dim the changelog body
+            for line in info.changelog_delta.splitlines():
+                print(f"  {line}")
+    if shown:
+        print(f"{DIM}{'─' * 40}{NC}")
+
+
 def display_analysis(analysis: str) -> None:
     """Display AI changelog analysis."""
     print()

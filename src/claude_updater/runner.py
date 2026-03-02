@@ -16,6 +16,7 @@ from claude_updater.display import (
     GREEN,
     NC,
     display_analysis,
+    display_changelogs,
     display_summary,
     prompt_for_update,
     warn_running_instances,
@@ -53,10 +54,46 @@ def _check_adapter(adapter: ToolAdapter) -> VersionInfo:
         )
 
 
+def _fetch_changelogs(
+    results: list[VersionInfo],
+    config: dict,
+) -> dict[str, str]:
+    """Fetch changelog deltas for tools with updates. Returns {tool_name: changelog}."""
+    adapters = get_enabled_adapters(config)
+    adapter_map = {a.key: a for a in adapters}
+    changelogs: dict[str, str] = {}
+
+    updatable = [r for r in results if r.has_update]
+    for info in updatable:
+        adapter = adapter_map.get(info.key)
+        if adapter and info.installed_version and info.latest_version:
+            delta = adapter.get_changelog_delta(info.installed_version, info.latest_version)
+            if delta:
+                changelogs[info.tool_name] = delta
+                info.changelog_delta = delta
+
+    return changelogs
+
+
+def _run_ai_analysis(changelogs: dict[str, str], config: dict) -> None:
+    """Run AI analysis on changelogs if configured."""
+    ai_config = config.get("ai_analysis", {})
+    if not ai_config.get("enabled") or not changelogs:
+        return
+    try:
+        from claude_updater.analyzer import analyze_changelogs
+        analysis = analyze_changelogs(changelogs, ai_config)
+        if analysis:
+            display_analysis(analysis)
+    except Exception:
+        pass
+
+
 def run_check(
     config: dict | None = None,
     force: bool = False,
     json_output: bool = False,
+    show_notes: bool = False,
 ) -> list[VersionInfo]:
     """Run update checks for all enabled adapters."""
     if config is None:
@@ -65,7 +102,7 @@ def run_check(
     cache = VersionCache(ttl=config.get("general", {}).get("cache_ttl", 86400))
 
     # Check cache unless forced
-    if not force and cache.is_fresh():
+    if not force and not show_notes and cache.is_fresh():
         cached = cache.read()
         if cached.get("versions") and not json_output:
             results = []
@@ -78,9 +115,7 @@ def run_check(
                     has_update=data.get("has_update", False),
                     update_method=data.get("update_method", ""),
                 ))
-            has_updates = display_summary(results)
-            if not has_updates:
-                return results
+            display_summary(results)
             return results
 
     adapters = get_enabled_adapters(config)
@@ -115,7 +150,15 @@ def run_check(
         print(json.dumps(cache_data, indent=2))
         return results
 
-    display_summary(results)
+    has_updates = display_summary(results)
+
+    # Show release notes when updates are available (or when --notes is passed)
+    if has_updates or show_notes:
+        changelogs = _fetch_changelogs(results, config)
+        if changelogs:
+            display_changelogs(results)
+            _run_ai_analysis(changelogs, config)
+
     return results
 
 
@@ -124,35 +167,11 @@ def run_update(config: dict | None = None, auto_yes: bool = False) -> None:
     if config is None:
         config = load_config()
 
-    results = run_check(config, force=True)
+    results = run_check(config, force=True, show_notes=True)
     updatable = [r for r in results if r.has_update and r.update_method]
 
     if not updatable:
         return
-
-    # Fetch changelogs for updatable tools
-    adapters = get_enabled_adapters(config)
-    adapter_map = {a.key: a for a in adapters}
-    changelogs: dict[str, str] = {}
-
-    for info in updatable:
-        adapter = adapter_map.get(info.key)
-        if adapter and info.installed_version and info.latest_version:
-            delta = adapter.get_changelog_delta(info.installed_version, info.latest_version)
-            if delta:
-                changelogs[info.tool_name] = delta
-                info.changelog_delta = delta
-
-    # AI analysis if configured and changelogs available
-    ai_config = config.get("ai_analysis", {})
-    if ai_config.get("enabled") and changelogs:
-        try:
-            from claude_updater.analyzer import analyze_changelogs
-            analysis = analyze_changelogs(changelogs, ai_config)
-            if analysis:
-                display_analysis(analysis)
-        except Exception:
-            pass
 
     # Prompt for update
     if auto_yes:
@@ -164,6 +183,8 @@ def run_update(config: dict | None = None, auto_yes: bool = False) -> None:
         return
 
     # Apply updates
+    adapters = get_enabled_adapters(config)
+    adapter_map = {a.key: a for a in adapters}
     for info in updatable:
         adapter = adapter_map.get(info.key)
         if adapter:

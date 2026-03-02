@@ -121,12 +121,15 @@ class TestDoltAdapter:
 
     def test_changelog_delta(self):
         adapter = DoltAdapter()
-        releases = json.dumps([
-            {"tagName": "v1.83.0", "body": "New features"},
-            {"tagName": "v1.82.6", "body": "Bug fixes"},
-        ])
         with patch("subprocess.run") as mock:
-            mock.return_value = MagicMock(stdout=releases, returncode=0)
+            def side_effect(cmd, **kwargs):
+                cmd_str = " ".join(cmd)
+                if "releases" in cmd_str and "--paginate" in cmd_str:
+                    return MagicMock(stdout="v1.83.0\nv1.82.6\n", returncode=0)
+                if "releases/tags" in cmd_str:
+                    return MagicMock(stdout="## Changelog\n* New features\n* Bug fixes\n", returncode=0)
+                return MagicMock(stdout="", returncode=1)
+            mock.side_effect = side_effect
             delta = adapter.get_changelog_delta("1.82.6", "1.83.0")
             assert "v1.83.0" in delta
 

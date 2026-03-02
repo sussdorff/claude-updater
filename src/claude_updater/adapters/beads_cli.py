@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import subprocess
 
-from claude_updater.adapters.base import ToolAdapter
+from claude_updater.adapters.base import ToolAdapter, gh_changelog_delta
 
 
 class BeadsCliAdapter(ToolAdapter):
@@ -50,35 +50,7 @@ class BeadsCliAdapter(ToolAdapter):
             return ""
 
     def get_changelog_delta(self, from_ver: str, to_ver: str) -> str:
-        try:
-            r = subprocess.run(
-                [
-                    "gh", "release", "list",
-                    "--repo", "steveyegge/beads",
-                    "--json", "tagName,body",
-                    "--limit", "10",
-                ],
-                capture_output=True, text=True, timeout=30,
-            )
-            if r.returncode != 0:
-                return ""
-
-            releases = json.loads(r.stdout)
-            parts = []
-            in_range = False
-            for rel in releases:
-                tag = rel["tagName"]
-                ver = tag.lstrip("v")
-                if ver == to_ver:
-                    in_range = True
-                if in_range:
-                    body = rel.get("body", "")[:500]
-                    parts.append(f"## {tag}\n{body}\n")
-                if ver == from_ver:
-                    break
-            return "\n".join(parts)
-        except (subprocess.TimeoutExpired, FileNotFoundError, json.JSONDecodeError):
-            return ""
+        return gh_changelog_delta("steveyegge/beads", from_ver, to_ver)
 
     def apply_update(self) -> bool:
         try:

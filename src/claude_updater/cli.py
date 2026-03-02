@@ -13,7 +13,7 @@ def cmd_check(args: argparse.Namespace) -> None:
     from claude_updater.runner import run_check
 
     config = load_config()
-    run_check(config, force=args.force, json_output=args.json)
+    run_check(config, force=args.force, json_output=args.json, show_notes=args.notes)
 
 
 def cmd_update(args: argparse.Namespace) -> None:
@@ -78,6 +78,7 @@ def main() -> None:
     check_p = sub.add_parser("check", help="Check for updates")
     check_p.add_argument("--force", action="store_true", help="Ignore cache")
     check_p.add_argument("--json", action="store_true", help="JSON output")
+    check_p.add_argument("--notes", action="store_true", help="Show release notes for available updates")
     check_p.set_defaults(func=cmd_check)
 
     # update

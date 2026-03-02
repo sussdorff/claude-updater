@@ -39,6 +39,9 @@ class MockAdapter:
             update_method=self.update_command if has_update else "",
         )
 
+    def get_changelog_delta(self, from_ver, to_ver):
+        return ""
+
     def configure(self, settings):
         self._settings = settings
 

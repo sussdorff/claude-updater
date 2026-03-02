@@ -1,3 +1,8 @@
+from __future__ import annotations
+
+import json
+import re
+import subprocess
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 
@@ -61,3 +66,97 @@ class ToolAdapter(ABC):
 
     def configure(self, settings: dict) -> None:
         self._settings = settings
+
+
+def gh_changelog_delta(repo: str, from_ver: str, to_ver: str) -> str:
+    """Fetch changelog between two versions from GitHub releases.
+
+    Uses 'gh api' to get release bodies, extracts the Changelog section,
+    and returns releases between from_ver (exclusive) and to_ver (inclusive).
+    """
+    try:
+        r = subprocess.run(
+            ["gh", "api", f"repos/{repo}/releases", "--paginate",
+             "--jq", ".[].tag_name"],
+            capture_output=True, text=True, timeout=30,
+        )
+        if r.returncode != 0:
+            return ""
+
+        # Find which tags are in range
+        all_tags = r.stdout.strip().splitlines()
+        tags_in_range = []
+        in_range = False
+        for tag in all_tags:
+            ver = tag.lstrip("v")
+            if ver == to_ver:
+                in_range = True
+            if in_range:
+                tags_in_range.append(tag)
+            if ver == from_ver:
+                break
+
+        # Exclude from_ver itself (we want changes *since* from_ver)
+        if tags_in_range and tags_in_range[-1].lstrip("v") == from_ver:
+            tags_in_range = tags_in_range[:-1]
+
+        if not tags_in_range:
+            return ""
+
+        # Fetch body for each release in range (limit to 3 to avoid huge output)
+        parts = []
+        for tag in tags_in_range[:3]:
+            try:
+                r = subprocess.run(
+                    ["gh", "api", f"repos/{repo}/releases/tags/{tag}",
+                     "--jq", ".body"],
+                    capture_output=True, text=True, timeout=15,
+                )
+                if r.returncode != 0:
+                    continue
+                body = _extract_changelog_section(r.stdout)
+                if body:
+                    parts.append(f"### {tag}\n{body}")
+            except (subprocess.TimeoutExpired, FileNotFoundError):
+                continue
+
+        return "\n\n".join(parts)
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return ""
+
+
+def _extract_changelog_section(body: str) -> str:
+    """Extract the Changelog/What's Changed section from a release body.
+
+    Skips install instructions and binary lists, returns just the meaningful changes.
+    """
+    lines = body.splitlines()
+    result = []
+    in_changelog = False
+
+    for line in lines:
+        lower = line.lower().strip()
+        # Start capturing at changelog-like headers
+        if re.match(r"^#{1,3}\s*(changelog|what'?s?\s*changed|changes|features|bug\s*fixes|fixes)", lower):
+            in_changelog = True
+            continue
+        # Stop at non-changelog sections
+        if in_changelog and re.match(r"^#{1,3}\s*(install|download|binary|pre-compiled|full\s*diff|new\s*contributor)", lower):
+            break
+        if in_changelog and line.strip():
+            result.append(line)
+
+    # If no explicit section found, try to grab commit-style entries
+    if not result:
+        for line in lines:
+            if line.strip().startswith("* ") or line.strip().startswith("- "):
+                result.append(line)
+            if len(result) >= 20:
+                break
+
+    # Truncate to keep output reasonable
+    if len(result) > 30:
+        result = result[:30]
+        result.append("  ...")
+
+    return "\n".join(result).strip()
