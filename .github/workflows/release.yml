@@ -38,10 +38,12 @@ jobs:
         id: version
         run: echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
 
-      - name: Stamp version in pyproject.toml
+      - name: Stamp version
         env:
           VERSION: ${{ steps.version.outputs.VERSION }}
-        run: sed -i "s/^version = .*/version = \"$VERSION\"/" pyproject.toml
+        run: |
+          sed -i "s/^version = .*/version = \"$VERSION\"/" pyproject.toml
+          sed -i "s/^__version__ = .*/__version__ = \"$VERSION\"/" src/claude_updater/__init__.py
 
       - name: Build package
         run: uv build
