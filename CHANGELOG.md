@@ -4,7 +4,29 @@ All notable changes to claude-updater will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [2026.03.3] - 2026-03-02
+
+### Fixed
+
+- Normalize CalVer leading zeros in self-check adapter
+
+## [2026.03.2] - 2026-03-02
+
+### Added
+
+- Add self-check adapter for claude-updater
+
+## [2026.03.1] - 2026-03-02
+
+### Added
+
+- Improve dolt release notes extraction, remove beads CLI adapter
+
+### Bd
+
+- Backup 2026-03-02 09:16
+
+## [2026.03.0] - 2026-03-02
 
 ### Added
 
@@ -13,6 +35,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Documentation
 
 - Update changelog
+- Update changelog for release-notes feature
 
 ### Maintenance
 
