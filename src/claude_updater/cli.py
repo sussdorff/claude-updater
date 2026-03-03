@@ -13,7 +13,7 @@ def cmd_check(args: argparse.Namespace) -> None:
     from claude_updater.runner import run_check
 
     config = load_config()
-    run_check(config, force=args.force, json_output=args.json, show_notes=args.notes)
+    run_check(config, force=args.force, json_output=args.json, show_notes=args.notes, remote=args.remote)
 
 
 def cmd_update(args: argparse.Namespace) -> None:
@@ -21,7 +21,7 @@ def cmd_update(args: argparse.Namespace) -> None:
     from claude_updater.runner import run_update
 
     config = load_config()
-    run_update(config, auto_yes=args.yes)
+    run_update(config, auto_yes=args.yes, remote=args.remote)
 
 
 def cmd_release_notes(args: argparse.Namespace) -> None:
@@ -92,6 +92,7 @@ def main() -> None:
     check_p.add_argument("--force", action="store_true", help="Ignore cache")
     check_p.add_argument("--json", action="store_true", help="JSON output")
     check_p.add_argument("--notes", action="store_true", help="Show release notes for available updates")
+    check_p.add_argument("--remote", action="store_true", help="Show remote versions alongside local")
     check_p.set_defaults(func=cmd_check)
 
     # release-notes
@@ -104,6 +105,7 @@ def main() -> None:
     # update
     update_p = sub.add_parser("update", help="Check and apply updates")
     update_p.add_argument("--yes", "-y", action="store_true", help="Auto-approve updates")
+    update_p.add_argument("--remote", action="store_true", help="Also update remote hosts")
     update_p.set_defaults(func=cmd_update)
 
     # config

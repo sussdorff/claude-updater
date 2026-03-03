@@ -16,6 +16,7 @@ class VersionInfo:
     has_update: bool
     update_method: str
     changelog_delta: str = ""
+    remote_version: str = ""
 
 
 @dataclass

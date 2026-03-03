@@ -22,6 +22,12 @@ from claude_updater.display import (
     prompt_for_update,
     warn_running_instances,
 )
+from claude_updater.hooks import load_hooks, run_post_update_hooks
+from claude_updater.remote import (
+    load_remote_configs,
+    run_all_remote_checks,
+    run_post_local_remote_updates,
+)
 
 
 def _refresh_brew_index() -> None:
@@ -81,6 +87,7 @@ def run_check(
     force: bool = False,
     json_output: bool = False,
     show_notes: bool = False,
+    remote: bool = False,
 ) -> list[VersionInfo]:
     """Run update checks for all enabled adapters."""
     if config is None:
@@ -101,8 +108,11 @@ def run_check(
                     latest_version=data.get("latest", ""),
                     has_update=data.get("has_update", False),
                     update_method=data.get("update_method", ""),
+                    remote_version=data.get("remote", ""),
                 ))
-            display_summary(results)
+            if remote:
+                _merge_remote_versions(results, config)
+            display_summary(results, show_remote=remote)
             return results
 
     adapters = get_enabled_adapters(config)
@@ -121,23 +131,30 @@ def run_check(
     adapter_order = [a.key for a in adapters]
     results.sort(key=lambda r: adapter_order.index(r.key) if r.key in adapter_order else 999)
 
+    # Merge remote versions if requested
+    if remote:
+        _merge_remote_versions(results, config)
+
     # Cache results
     cache_data = {}
     for r in results:
-        cache_data[r.key] = {
+        entry: dict = {
             "tool_name": r.tool_name,
             "installed": r.installed_version,
             "latest": r.latest_version,
             "has_update": r.has_update,
             "update_method": r.update_method,
         }
+        if r.remote_version:
+            entry["remote"] = r.remote_version
+        cache_data[r.key] = entry
     cache.write(cache_data)
 
     if json_output:
         print(json.dumps(cache_data, indent=2))
         return results
 
-    has_updates = display_summary(results)
+    has_updates = display_summary(results, show_remote=remote)
 
     # Show release notes when updates are available (or when --notes is passed)
     if has_updates or show_notes:
@@ -148,15 +165,40 @@ def run_check(
     return results
 
 
-def run_update(config: dict | None = None, auto_yes: bool = False) -> None:
+def _merge_remote_versions(results: list[VersionInfo], config: dict) -> None:
+    """Run remote checks and merge versions into results in-place."""
+    remote_configs = load_remote_configs(config)
+    if not remote_configs:
+        return
+    checks = run_all_remote_checks(remote_configs)
+    for r in results:
+        check = checks.get(r.key)
+        if check and check.remote_version:
+            r.remote_version = check.remote_version
+
+
+def run_update(
+    config: dict | None = None,
+    auto_yes: bool = False,
+    remote: bool = False,
+) -> None:
     """Run checks and optionally apply updates."""
     if config is None:
         config = load_config()
 
-    results = run_check(config, force=True, show_notes=True)
+    results = run_check(config, force=True, show_notes=True, remote=remote)
     updatable = [r for r in results if r.has_update and r.update_method]
 
-    if not updatable:
+    # Check for remote drift (remote version behind local installed)
+    remote_configs = load_remote_configs(config) if remote else {}
+    remote_drift = []
+    if remote_configs:
+        for r in results:
+            if r.remote_version and r.remote_version != r.installed_version:
+                if r.key in remote_configs:
+                    remote_drift.append(r)
+
+    if not updatable and not remote_drift:
         return
 
     # Prompt for update
@@ -168,9 +210,13 @@ def run_update(config: dict | None = None, auto_yes: bool = False) -> None:
     if answer != "yes":
         return
 
-    # Apply updates
+    # Apply local updates
+    hooks = load_hooks(config)
     adapters = get_enabled_adapters(config)
     adapter_map = {a.key: a for a in adapters}
+    updated_keys: list[str] = []
+    adapter_names: dict[str, str] = {a.key: a.name for a in adapters}
+
     for info in updatable:
         adapter = adapter_map.get(info.key)
         if adapter:
@@ -179,8 +225,20 @@ def run_update(config: dict | None = None, auto_yes: bool = False) -> None:
             if success:
                 new_ver = adapter.get_installed_version()
                 print(f"{GREEN}{info.tool_name} updated to {new_ver}{NC}")
+                updated_keys.append(info.key)
+                run_post_update_hooks(hooks, info.key, info.tool_name)
             else:
                 print(f"Failed to update {info.tool_name}", file=sys.stderr)
+
+    # Apply remote updates for locally-updated adapters + drifted remotes
+    if remote_configs:
+        keys_to_update_remote = list(set(
+            updated_keys + [r.key for r in remote_drift]
+        ))
+        if keys_to_update_remote:
+            run_post_local_remote_updates(
+                remote_configs, keys_to_update_remote, adapter_names
+            )
 
     warn_running_instances()
 

@@ -23,7 +23,7 @@ BOLD = _c("\033[1m")
 NC = _c("\033[0m")
 
 
-def display_summary(results: list[VersionInfo]) -> bool:
+def display_summary(results: list[VersionInfo], show_remote: bool = False) -> bool:
     """Display update summary table. Returns True if any updates available."""
     has_updates = False
 
@@ -38,9 +38,16 @@ def display_summary(results: list[VersionInfo]) -> bool:
 
         if info.has_update:
             has_updates = True
-            print(f"{YELLOW}●{NC} {info.tool_name}: {info.installed_version} → {info.latest_version}")
+            line = f"{YELLOW}●{NC} {info.tool_name}: {info.installed_version} → {info.latest_version}"
         else:
-            print(f"{GREEN}✓{NC} {info.tool_name}: {info.installed_version}")
+            line = f"{GREEN}✓{NC} {info.tool_name}: {info.installed_version}"
+
+        if show_remote and info.remote_version:
+            drift = info.remote_version != info.installed_version
+            dot = f" {YELLOW}●{NC}" if drift else ""
+            line += f"  {DIM}remote:{NC} {info.remote_version}{dot}"
+
+        print(line)
 
     print(f"{DIM}{'─' * 40}{NC}")
     return has_updates
