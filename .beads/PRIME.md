@@ -18,7 +18,7 @@ Dies handhabt automatisch:
 - Changelog-Generierung (git-cliff)
 - Doku-Gaps Detection
 - Learnings-Extraktion
-- Git commit + tag + push + bd sync
+- Git commit + tag + push + `bd dolt commit` + `bd dolt push`
 
 Flags: `--dry-run`, `--skip-beads`, `--skip-learnings`, `--skip-push`
 
@@ -28,20 +28,59 @@ Siehe auch: elysium-uwm (Skill-Implementierung)
 ```
 [ ] 1. git status              (check what changed)
 [ ] 2. git add <files>         (stage code changes)
-[ ] 3. bd sync                 (commit beads changes)
+[ ] 3. bd dolt commit          (commit beads changes)
 [ ] 4. git commit -m "..."     (commit code)
-[ ] 5. bd sync                 (commit any new beads changes)
+[ ] 5. bd dolt push            (push beads to remote)
 [ ] 6. git push                (push to remote)
 ```
 
 **NEVER skip this.** Work is not done until pushed.
+
+## Means of Compliance (MoC)
+
+Jedes Akzeptanzkriterium eines Beads muss eine definierte Nachweismethode haben.
+MoC wird VOR dem Coden festgelegt — nicht nachtraeglich.
+
+### MoC-Typen
+
+| Kuerzel | Nachweismethode | Wann verwenden |
+|---------|----------------|----------------|
+| `unit` | Unit-Test (pytest/jest/go test/etc.) | Funktionslogik, Berechnungen, Datentypen |
+| `e2e` | E2E-Test (Playwright/Cypress) | User-Workflows, UI-Interaktionen |
+| `integ` | Integration-Test | API-Aufrufe, Service-Kommunikation, DB-Queries |
+| `review` | Manueller Code-Review | Architektur-Entscheidungen, Code-Qualitaet |
+| `demo` | Live-Demo / Screenshot | UI-Layout, visuelles Verhalten |
+| `doc` | Dokumentation / Statement | Nicht-funktionale Anforderungen, Prozessaenderungen |
+
+### MoC-Template fuer Bead-Erstellung
+
+Bei `bd create` oder als Comment nach Erstellung:
+
+```markdown
+## Means of Compliance
+
+| # | Akzeptanzkriterium | MoC | Nachweis |
+|---|-------------------|-----|----------|
+| 1 | API gibt 200 bei gueltigem Input | unit | test_api_valid_input() |
+| 2 | Fehler-Toast bei Netzwerkfehler | e2e | test_error_toast.spec.ts |
+| 3 | Daten persistiert in DB | integ | test_db_persistence() |
+| 4 | Code folgt Repository-Patterns | review | PR-Review durch Maintainer |
+```
+
+### Regeln
+
+- **Pflicht**: Jedes AK braucht mindestens einen MoC-Typ
+- **Vor dem Coden**: MoC wird in Phase -1 (Bead-Erstellung) oder /plan definiert
+- **Nachweis-Spalte**: Wird beim Schliessen ausgefuellt (Testname, Screenshot-Link, etc.)
+- **Close-Gate**: Agent darf Bead erst schliessen wenn alle MoC-Nachweise erbracht sind
+- **Kein Overkill**: `review` und `doc` sind valide MoC-Typen — nicht alles braucht automatisierte Tests
 
 ## Core Rules
 - **Default**: Use beads for ALL task tracking (`bd create`, `bd ready`, `bd close`)
 - **Prohibited**: Do NOT use TodoWrite, TaskCreate, or markdown files for task tracking
 - **Workflow**: Create beads issue BEFORE writing code, mark in_progress when starting
 - Persistence you don't need beats lost context
-- Git workflow: hooks auto-sync, run `bd sync` at session end
+- Git workflow: hooks auto-sync, run `bd dolt commit && bd dolt push` at session end
 - Session management: check `bd ready` for available work
 
 ## Essential Commands
@@ -70,8 +109,9 @@ Siehe auch: elysium-uwm (Skill-Implementierung)
 - `bd show <id>` - See what's blocking/blocked by this issue
 
 ### Sync & Collaboration
-- `bd sync` - Sync with git remote (run at session end)
-- `bd sync --status` - Check sync status without syncing
+- `bd dolt commit` - Commit pending Dolt changes (snapshots current state)
+- `bd dolt push` - Push to configured Dolt remote (requires remote server)
+- `bd dolt pull` - Pull from configured Dolt remote
 
 ### Project Health
 - `bd stats` - Project statistics (open/closed/blocked counts)
@@ -89,7 +129,7 @@ bd update <id> --status=in_progress  # Claim it
 **Completing work:**
 ```bash
 bd close <id1> <id2> ...    # Close all completed issues at once
-bd sync                     # Push to remote
+bd dolt commit && bd dolt push  # Commit + push to remote
 ```
 
 **Creating dependent work:**

@@ -226,7 +226,7 @@ def run_update(
                 new_ver = adapter.get_installed_version()
                 print(f"{GREEN}{info.tool_name} updated to {new_ver}{NC}")
                 updated_keys.append(info.key)
-                run_post_update_hooks(hooks, info.key, info.tool_name)
+                run_post_update_hooks(hooks, info.key)
             else:
                 print(f"Failed to update {info.tool_name}", file=sys.stderr)
 

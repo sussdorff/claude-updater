@@ -22,6 +22,7 @@ import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
+from typing import Literal
 
 from claude_updater.display import DIM, GREEN, NC, RED, YELLOW
 
@@ -30,7 +31,7 @@ from claude_updater.display import DIM, GREEN, NC, RED, YELLOW
 class RemoteConfig:
     adapter_key: str
     command: str
-    parse_mode: str = "regex"  # "regex" or "json"
+    parse_mode: Literal["regex", "json"] = "regex"
     version_regex: str = r"\d+\.\d+\.\d+"
     timeout: int = 30
     update_timeout: int = 120
@@ -91,9 +92,10 @@ def run_remote_check(rc: RemoteConfig) -> RemoteResult:
             timeout=rc.timeout,
         )
         if result.returncode != 0:
-            stderr = result.stderr.strip().splitlines()
-            error_msg = stderr[-1] if stderr else f"exit {result.returncode}"
-            return RemoteResult(adapter_key=rc.adapter_key, error=error_msg)
+            return RemoteResult(
+                adapter_key=rc.adapter_key,
+                error=_stderr_summary(result.stderr, result.returncode),
+            )
 
         stdout = result.stdout.strip()
         if rc.parse_mode == "json":
@@ -155,11 +157,7 @@ def run_remote_update(rc: RemoteConfig, adapter_name: str) -> RemoteResult:
             else:
                 version = _extract_version_regex(stdout, rc.version_regex)
             # Show last non-empty line as status
-            last_line = ""
-            for line in reversed(stdout.splitlines()):
-                if line.strip():
-                    last_line = line.strip()
-                    break
+            last_line = _last_nonempty_line(stdout)
             if last_line:
                 print(f"  {GREEN}✓{NC} {last_line}")
             else:
@@ -170,8 +168,7 @@ def run_remote_update(rc: RemoteConfig, adapter_name: str) -> RemoteResult:
                 stdout=stdout,
             )
         else:
-            stderr = result.stderr.strip().splitlines()
-            error_msg = stderr[-1] if stderr else f"exit {result.returncode}"
+            error_msg = _stderr_summary(result.stderr, result.returncode)
             print(
                 f"  {YELLOW}⚠ Remote update failed (exit {result.returncode}): {error_msg}{NC}",
                 file=sys.stderr,
@@ -194,13 +191,20 @@ def run_post_local_remote_updates(
     updated_keys: list[str],
     adapter_names: dict[str, str],
 ) -> dict[str, RemoteResult]:
-    """Run remote updates for adapters that were just updated locally."""
+    """Run remote updates for adapters that were just updated locally (in parallel)."""
+    to_run = {key: configs[key] for key in updated_keys if key in configs}
+    if not to_run:
+        return {}
+
     results: dict[str, RemoteResult] = {}
-    for key in updated_keys:
-        rc = configs.get(key)
-        if rc:
-            name = adapter_names.get(key, key)
-            results[key] = run_remote_update(rc, name)
+    with ThreadPoolExecutor(max_workers=len(to_run)) as pool:
+        futures = {
+            pool.submit(run_remote_update, rc, adapter_names.get(key, key)): key
+            for key, rc in to_run.items()
+        }
+        for future in as_completed(futures):
+            key = futures[future]
+            results[key] = future.result()
     return results
 
 
@@ -217,3 +221,17 @@ def _extract_version_json(stdout: str) -> str:
         return str(data["version"])
     except (json.JSONDecodeError, KeyError, TypeError):
         return ""
+
+
+def _last_nonempty_line(text: str) -> str:
+    """Return the last non-empty line of text, or empty string."""
+    for line in reversed(text.splitlines()):
+        if line.strip():
+            return line.strip()
+    return ""
+
+
+def _stderr_summary(stderr: str, returncode: int) -> str:
+    """Return last line of stderr, or 'exit N' fallback."""
+    lines = stderr.strip().splitlines()
+    return lines[-1] if lines else f"exit {returncode}"
