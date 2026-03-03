@@ -8,6 +8,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Add remote version checking and updating via SSH
+- Add post-update hooks and refactor remote helpers
+
+### Bd
+
+- Backup 2026-03-02 15:21
+- Backup 2026-03-03 03:43
+- Backup 2026-03-03 04:23
+
+## [Unreleased]
+
+### Added
+
 - Remove unused AI summary feature
 
 ### Documentation
