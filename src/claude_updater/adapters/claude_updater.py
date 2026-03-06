@@ -4,11 +4,16 @@ from __future__ import annotations
 
 import json
 import subprocess
+from importlib.metadata import PackageNotFoundError, version as _get_pkg_version
 from urllib.request import urlopen
 from urllib.error import URLError
 
-from claude_updater import __version__
 from claude_updater.adapters.base import ReleaseInfo, ToolAdapter, gh_get_releases
+
+
+def _normalize_calver(v: str) -> str:
+    """Normalize CalVer: '2026.03.2' → '2026.3.2' to match PyPI normalization."""
+    return ".".join(str(int(p)) if p.isdigit() else p for p in v.split("."))
 
 
 class ClaudeUpdaterAdapter(ToolAdapter):
@@ -25,8 +30,12 @@ class ClaudeUpdaterAdapter(ToolAdapter):
         return "uv tool upgrade claude-updater"
 
     def get_installed_version(self) -> str:
-        # Normalize CalVer: "2026.03.2" → "2026.3.2" to match PyPI normalization
-        return ".".join(str(int(p)) if p.isdigit() else p for p in __version__.split("."))
+        # Re-read from metadata to pick up version changes after self-update
+        try:
+            ver = _get_pkg_version("claude-updater")
+        except PackageNotFoundError:
+            from claude_updater import __version__ as ver
+        return _normalize_calver(ver)
 
     def get_latest_version(self) -> str:
         try:

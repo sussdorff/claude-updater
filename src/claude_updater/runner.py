@@ -240,6 +240,10 @@ def run_update(
                 remote_configs, keys_to_update_remote, adapter_names
             )
 
+    # Invalidate cache so next check reflects updated versions
+    if updated_keys:
+        VersionCache().invalidate()
+
     warn_running_instances()
 
 
