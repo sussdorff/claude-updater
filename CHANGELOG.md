@@ -6,10 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Enable self-update via uv tool upgrade
+
+## [2026.03.5] - 2026-03-03
+
 ### Added
 
 - Add remote version checking and updating via SSH
 - Add post-update hooks and refactor remote helpers
+
+### Documentation
+
+- Update changelog
 
 ### Bd
 
@@ -17,7 +27,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Backup 2026-03-03 03:43
 - Backup 2026-03-03 04:23
 
-## [Unreleased]
+## [2026.03.4] - 2026-03-02
 
 ### Added
 
@@ -26,6 +36,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Documentation
 
 - Update changelog for v2026.03.1-3 releases
+- Update changelog
 
 ### Bd
 
