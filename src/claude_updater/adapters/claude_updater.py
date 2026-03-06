@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 from urllib.request import urlopen
 from urllib.error import URLError
 
@@ -42,5 +43,11 @@ class ClaudeUpdaterAdapter(ToolAdapter):
         return gh_get_releases("sussdorff/claude-updater", limit)
 
     def apply_update(self) -> bool:
-        # Don't self-update — just inform
-        return False
+        try:
+            r = subprocess.run(
+                ["uv", "tool", "upgrade", "claude-updater"],
+                capture_output=True, text=True, timeout=120,
+            )
+            return r.returncode == 0
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            return False
