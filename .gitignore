@@ -20,3 +20,5 @@ build/
 .beads/dolt-monitor.*
 .beads/dolt/
 .beads/backup/
+.beads/interactions.jsonl
+.beads/last-touched
