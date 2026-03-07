@@ -12,3 +12,11 @@ build/
 # Dolt database files (added by bd init)
 .dolt/
 *.db
+
+# Beads local state (not shared)
+.beads/metadata.json
+.beads/dolt-server.port
+.beads/dolt-server.*
+.beads/dolt-monitor.*
+.beads/dolt/
+.beads/backup/
