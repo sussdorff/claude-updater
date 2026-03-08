@@ -35,7 +35,11 @@ def _refresh_brew_index() -> None:
 
     Without this, 'brew info --json=v2' returns stale version data
     and brew-based adapters miss available updates.
+
+    Skipped on Windows where brew is not available.
     """
+    if sys.platform == "win32":
+        return
     try:
         subprocess.run(
             ["brew", "update"],
