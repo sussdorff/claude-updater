@@ -8,10 +8,12 @@ from claude_updater.adapters.claude_code import ClaudeCodeAdapter
 from claude_updater.adapters.claude_mem import ClaudeMemAdapter
 from claude_updater.adapters.claude_updater import ClaudeUpdaterAdapter
 from claude_updater.adapters.dolt import DoltAdapter
+from claude_updater.adapters.system_prompt import SystemPromptAdapter
 
 ADAPTER_REGISTRY: dict[str, type] = {
     "claude_updater_self": ClaudeUpdaterAdapter,
     "claude_code": ClaudeCodeAdapter,
+    "system_prompt": SystemPromptAdapter,
     "claude_mem": ClaudeMemAdapter,
     "beads_cli": BeadsCliAdapter,
     "beads_plugin": BeadsPluginAdapter,

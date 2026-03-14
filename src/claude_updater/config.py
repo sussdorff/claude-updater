@@ -21,6 +21,9 @@ plugin_dir = "~/.claude/plugins/marketplaces/thedotmack"
 enabled = true
 plugin_dir = "~/.claude/plugins/marketplaces/beads-marketplace"
 
+[adapters.system_prompt]
+enabled = true
+
 [adapters.dolt]
 enabled = true
 
