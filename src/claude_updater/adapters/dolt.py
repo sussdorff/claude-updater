@@ -1,6 +1,6 @@
 """dolt adapter — cross-platform version check and update.
 
-Uses brew on macOS/Linux, GitHub releases on Windows.
+Uses brew on macOS/Linux, GitHub releases → ~/.local/bin/ on Windows.
 """
 
 from __future__ import annotations
@@ -10,7 +10,13 @@ import platform
 import re
 import subprocess
 
-from claude_updater.adapters.base import ReleaseInfo, ToolAdapter, gh_changelog_delta, gh_get_releases
+from claude_updater.adapters.base import (
+    ReleaseInfo,
+    ToolAdapter,
+    download_gh_release_binary,
+    gh_changelog_delta,
+    gh_get_releases,
+)
 
 _IS_WINDOWS = platform.system() == "Windows"
 
@@ -27,25 +33,22 @@ class DoltAdapter(ToolAdapter):
     @property
     def update_command(self) -> str:
         if _IS_WINDOWS:
-            return "winget upgrade dolthub.dolt"
+            return "claude-updater update (GitHub release → ~/.local/bin/)"
         return "brew upgrade dolt"
 
     def get_installed_version(self) -> str:
-        # Try dolt version directly (works on all platforms)
         try:
             r = subprocess.run(
                 ["dolt", "version"],
                 capture_output=True, text=True, timeout=10,
             )
             if r.returncode == 0:
-                # Output: "dolt version 1.35.0"
                 m = re.search(r"(\d+\.\d+\.\d+)", r.stdout)
                 if m:
                     return m.group(1)
         except (subprocess.TimeoutExpired, FileNotFoundError):
             pass
 
-        # Fallback: brew on non-Windows
         if not _IS_WINDOWS:
             try:
                 r = subprocess.run(
@@ -63,7 +66,6 @@ class DoltAdapter(ToolAdapter):
         return ""
 
     def get_latest_version(self) -> str:
-        # Use GitHub API (works on all platforms)
         try:
             r = subprocess.run(
                 ["gh", "api", "repos/dolthub/dolt/releases/latest",
@@ -75,7 +77,6 @@ class DoltAdapter(ToolAdapter):
         except (subprocess.TimeoutExpired, FileNotFoundError):
             pass
 
-        # Fallback: brew on non-Windows
         if not _IS_WINDOWS:
             try:
                 r = subprocess.run(
@@ -98,36 +99,17 @@ class DoltAdapter(ToolAdapter):
 
     def apply_update(self) -> bool:
         if _IS_WINDOWS:
-            # Try winget first
-            try:
-                r = subprocess.run(
-                    ["winget", "upgrade", "dolthub.dolt"],
-                    capture_output=True, text=True, timeout=120,
-                )
-                if r.returncode == 0:
-                    return True
-            except (subprocess.TimeoutExpired, FileNotFoundError):
-                pass
-            # Fallback: download from GitHub releases via PowerShell
-            try:
-                ps_cmd = (
-                    "$r = gh api repos/dolthub/dolt/releases/latest --jq '.assets[] | select(.name | endswith(\"windows-amd64.zip\")) | .browser_download_url';"
-                    "if ($r) { $tmp = \"$env:TEMP\\dolt.zip\"; Invoke-WebRequest $r -OutFile $tmp;"
-                    "Expand-Archive $tmp -DestinationPath \"$env:LOCALAPPDATA\\dolt\" -Force; Remove-Item $tmp }"
-                )
-                r = subprocess.run(
-                    ["powershell", "-Command", ps_cmd],
-                    capture_output=True, text=True, timeout=120,
-                )
-                return r.returncode == 0
-            except (subprocess.TimeoutExpired, FileNotFoundError):
-                return False
-        else:
-            try:
-                r = subprocess.run(
-                    ["brew", "upgrade", "dolt"],
-                    capture_output=True, text=True, timeout=120,
-                )
-                return r.returncode == 0
-            except (subprocess.TimeoutExpired, FileNotFoundError):
-                return False
+            return download_gh_release_binary(
+                repo="dolthub/dolt",
+                asset_name="dolt-windows-amd64.zip",
+                binary_name="dolt.exe",
+                zip_binary_glob="**/bin/dolt.exe",
+            )
+        try:
+            r = subprocess.run(
+                ["brew", "upgrade", "dolt"],
+                capture_output=True, text=True, timeout=120,
+            )
+            return r.returncode == 0
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            return False

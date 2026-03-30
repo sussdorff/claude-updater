@@ -65,7 +65,7 @@ class ClaudeMemAdapter(ToolAdapter):
         if not changelog.exists():
             return ""
         try:
-            text = changelog.read_text()
+            text = changelog.read_text(encoding="utf-8")
             lines = text.splitlines()
             result = []
             found_start = False

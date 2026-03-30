@@ -5,6 +5,7 @@ import re
 import subprocess
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from pathlib import Path
 
 
 @dataclass
@@ -353,7 +354,7 @@ def changelog_get_releases(changelog_path: str, git_dir: str, limit: int = 5) ->
         return []
 
     try:
-        text = path.read_text()
+        text = path.read_text(encoding="utf-8")
     except OSError:
         return []
 
@@ -400,3 +401,94 @@ def changelog_get_releases(changelog_path: str, git_dir: str, limit: int = 5) ->
             pass
 
     return releases
+
+
+def download_gh_release_binary(
+    repo: str,
+    asset_name: str,
+    binary_name: str,
+    dest_dir: Path | None = None,
+    zip_binary_glob: str | None = None,
+) -> bool:
+    """Download a GitHub release zip and extract a binary to dest_dir.
+
+    Works on both Windows and macOS/Linux. Uses curl for download.
+    Falls back to PowerShell (Windows) if curl is unavailable.
+
+    Args:
+        repo: GitHub repo (e.g. "dolthub/dolt")
+        asset_name: Exact filename of the zip asset in the release
+        binary_name: Name of the binary to extract (e.g. "dolt.exe", "bd.exe")
+        dest_dir: Target directory (default: ~/.local/bin/)
+        zip_binary_glob: Custom glob to find binary in zip (default: **/{binary_name})
+    """
+    import shutil
+    import tempfile
+    import zipfile
+
+    if dest_dir is None:
+        dest_dir = Path.home() / ".local" / "bin"
+
+    # Get download URL via gh API
+    try:
+        jq = f'.assets[] | select(.name == "{asset_name}") | .browser_download_url'
+        r = subprocess.run(
+            ["gh", "api", f"repos/{repo}/releases/latest", "--jq", jq],
+            capture_output=True, text=True, timeout=15,
+        )
+        if r.returncode != 0 or not r.stdout.strip():
+            return False
+        url = r.stdout.strip()
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return False
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        zip_path = tmp / "download.zip"
+
+        # Download via curl, fallback to PowerShell
+        if not _download_file(url, zip_path):
+            return False
+
+        # Extract
+        try:
+            with zipfile.ZipFile(zip_path) as zf:
+                zf.extractall(tmp / "extracted")
+        except zipfile.BadZipFile:
+            return False
+
+        # Find the binary
+        extracted = tmp / "extracted"
+        glob_pattern = zip_binary_glob or f"**/{binary_name}"
+        candidates = list(extracted.glob(glob_pattern))
+        if not candidates:
+            return False
+
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(candidates[0], dest_dir / binary_name)
+        return True
+
+
+def _download_file(url: str, dest: Path) -> bool:
+    """Download a URL to a local file. Uses curl, falls back to PowerShell on Windows."""
+    # Try curl first (available on both macOS and modern Windows)
+    try:
+        r = subprocess.run(
+            ["curl", "-sL", "-o", str(dest), url],
+            capture_output=True, text=True, timeout=120,
+        )
+        if r.returncode == 0 and dest.stat().st_size > 0:
+            return True
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        pass
+
+    # Fallback: PowerShell (Windows only, but safe to try anywhere)
+    try:
+        r = subprocess.run(
+            ["powershell", "-Command",
+             f'Invoke-WebRequest -Uri "{url}" -OutFile "{dest}"'],
+            capture_output=True, text=True, timeout=120,
+        )
+        return r.returncode == 0 and dest.stat().st_size > 0
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        return False

@@ -30,7 +30,21 @@ class ClaudeUpdaterAdapter(ToolAdapter):
         return "uv tool upgrade claude-updater"
 
     def get_installed_version(self) -> str:
-        # Re-read from metadata to pick up version changes after self-update
+        # Ask uv directly for the tool version to avoid editable-install conflicts
+        try:
+            r = subprocess.run(
+                ["uv", "tool", "list"],
+                capture_output=True, text=True, timeout=15,
+            )
+            if r.returncode == 0:
+                for line in r.stdout.splitlines():
+                    if line.startswith("claude-updater "):
+                        # Format: "claude-updater v2026.3.6"
+                        ver = line.split()[-1].lstrip("v")
+                        return _normalize_calver(ver)
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            pass
+        # Fallback to metadata (may hit dev install)
         try:
             ver = _get_pkg_version("claude-updater")
         except PackageNotFoundError:
