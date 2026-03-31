@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import json
 import subprocess
+import sys
 from importlib.metadata import PackageNotFoundError, version as _get_pkg_version
-from urllib.request import urlopen
+from pathlib import Path
 from urllib.error import URLError
+from urllib.request import urlopen
 
 from claude_updater.adapters.base import ReleaseInfo, ToolAdapter, gh_get_releases
 
@@ -14,6 +16,32 @@ from claude_updater.adapters.base import ReleaseInfo, ToolAdapter, gh_get_releas
 def _normalize_calver(v: str) -> str:
     """Normalize CalVer: '2026.03.2' → '2026.3.2' to match PyPI normalization."""
     return ".".join(str(int(p)) if p.isdigit() else p for p in v.split("."))
+
+
+def _is_local_install() -> bool:
+    """Check if claude-updater was installed from a local path (not PyPI).
+
+    Local installs have a direct_url.json in the dist-info with a file:// URL,
+    or report version 0.0.0 (dev stub from pyproject.toml).
+    """
+    try:
+        ver = _get_pkg_version("claude-updater")
+        if ver.startswith("0.0.0"):
+            return True
+    except PackageNotFoundError:
+        pass
+
+    # Check direct_url.json (PEP 610) — present for local/VCS installs
+    for p in sys.path:
+        dist_info = Path(p).glob("claude_updater-*.dist-info/direct_url.json")
+        for url_file in dist_info:
+            try:
+                data = json.loads(url_file.read_text())
+                if data.get("url", "").startswith("file://"):
+                    return True
+            except (json.JSONDecodeError, OSError):
+                pass
+    return False
 
 
 def _detect_install_method() -> str:
@@ -56,6 +84,8 @@ class ClaudeUpdaterAdapter(ToolAdapter):
 
     @property
     def update_command(self) -> str:
+        if _is_local_install():
+            return "git pull + reinstall (managed locally)"
         method = _detect_install_method()
         if method == "uv":
             return "uv tool upgrade claude-updater"
@@ -102,6 +132,16 @@ class ClaudeUpdaterAdapter(ToolAdapter):
             from claude_updater import __version__ as ver
         return _normalize_calver(ver)
 
+    def check_status(self):
+        """Override to suppress update notification for local installs."""
+        info = super().check_status()
+        if _is_local_install() and info.has_update:
+            # Local install — version mismatch with PyPI is expected.
+            # Don't flag as update, it's managed via git pull.
+            info.has_update = False
+            info.update_method = "git pull + reinstall (managed locally)"
+        return info
+
     def get_latest_version(self) -> str:
         try:
             with urlopen(
@@ -119,33 +159,24 @@ class ClaudeUpdaterAdapter(ToolAdapter):
         return gh_get_releases("sussdorff/claude-updater", limit)
 
     def apply_update(self) -> bool:
+        if _is_local_install():
+            # Managed via git — self-update not applicable
+            return True
+
         method = _detect_install_method()
-
-        # Try PyPI upgrade first (works for published releases)
         if method == "uv":
-            cmds = [["uv", "tool", "upgrade", "claude-updater"]]
+            cmd = ["uv", "tool", "upgrade", "claude-updater"]
         elif method == "pipx":
-            cmds = [["pipx", "upgrade", "claude-updater"]]
+            cmd = ["pipx", "upgrade", "claude-updater"]
         else:
-            cmds = [["pip", "install", "--upgrade", "claude-updater"]]
-
-        # For pipx/uv: if PyPI upgrade fails (e.g. installed from local path),
-        # try reinstall from PyPI as fallback
-        if method == "pipx":
-            cmds.append(["pipx", "install", "--force", "claude-updater"])
-        elif method == "uv":
-            cmds.append(["uv", "tool", "install", "--force", "claude-updater"])
-
-        for cmd in cmds:
-            try:
-                r = subprocess.run(
-                    cmd,
-                    capture_output=True,
-                    text=True,
-                    timeout=120,
-                )
-                if r.returncode == 0:
-                    return True
-            except (subprocess.TimeoutExpired, FileNotFoundError):
-                continue
-        return False
+            cmd = ["pip", "install", "--upgrade", "claude-updater"]
+        try:
+            r = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+            return r.returncode == 0
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            return False
