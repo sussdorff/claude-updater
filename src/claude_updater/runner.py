@@ -225,7 +225,11 @@ def run_update(
         adapter = adapter_map.get(info.key)
         if adapter:
             print(f"{BLUE}Updating {info.tool_name}...{NC}")
-            success = adapter.apply_update()
+            try:
+                success = adapter.apply_update()
+            except Exception as exc:
+                print(f"Failed to update {info.tool_name}: {exc}", file=sys.stderr)
+                success = False
             if success:
                 new_ver = adapter.get_installed_version()
                 print(f"{GREEN}{info.tool_name} updated to {new_ver}{NC}")

@@ -465,7 +465,33 @@ def download_gh_release_binary(
             return False
 
         dest_dir.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(candidates[0], dest_dir / binary_name)
+        dest_path = dest_dir / binary_name
+        # On Windows, the target binary may be locked by a running process.
+        # Rename it out of the way first — Windows allows renaming in-use exes.
+        old_path = dest_path.with_suffix(dest_path.suffix + ".old")
+        if dest_path.exists():
+            try:
+                if old_path.exists():
+                    old_path.unlink()
+                dest_path.rename(old_path)
+            except OSError:
+                pass  # best-effort; copy2 below may still succeed
+        try:
+            shutil.copy2(candidates[0], dest_path)
+        except PermissionError:
+            # Restore the old binary if we moved it
+            if old_path.exists() and not dest_path.exists():
+                try:
+                    old_path.rename(dest_path)
+                except OSError:
+                    pass
+            return False
+        # Clean up the old binary
+        try:
+            if old_path.exists():
+                old_path.unlink()
+        except OSError:
+            pass  # will be cleaned up on next update
         return True
 
 
