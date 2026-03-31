@@ -16,6 +16,35 @@ def _normalize_calver(v: str) -> str:
     return ".".join(str(int(p)) if p.isdigit() else p for p in v.split("."))
 
 
+def _detect_install_method() -> str:
+    """Detect how claude-updater was installed: 'uv', 'pipx', or 'pip'."""
+    # Check uv first
+    try:
+        r = subprocess.run(
+            ["uv", "tool", "list"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if r.returncode == 0 and "claude-updater" in r.stdout:
+            return "uv"
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        pass
+    # Check pipx
+    try:
+        r = subprocess.run(
+            ["pipx", "list", "--short"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if r.returncode == 0 and "claude-updater" in r.stdout:
+            return "pipx"
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        pass
+    return "pip"
+
+
 class ClaudeUpdaterAdapter(ToolAdapter):
     @property
     def name(self) -> str:
@@ -27,19 +56,41 @@ class ClaudeUpdaterAdapter(ToolAdapter):
 
     @property
     def update_command(self) -> str:
-        return "uv tool upgrade claude-updater"
+        method = _detect_install_method()
+        if method == "uv":
+            return "uv tool upgrade claude-updater"
+        if method == "pipx":
+            return "pipx upgrade claude-updater"
+        return "pip install --upgrade claude-updater"
 
     def get_installed_version(self) -> str:
         # Ask uv directly for the tool version to avoid editable-install conflicts
         try:
             r = subprocess.run(
                 ["uv", "tool", "list"],
-                capture_output=True, text=True, timeout=15,
+                capture_output=True,
+                text=True,
+                timeout=15,
             )
             if r.returncode == 0:
                 for line in r.stdout.splitlines():
                     if line.startswith("claude-updater "):
                         # Format: "claude-updater v2026.3.6"
+                        ver = line.split()[-1].lstrip("v")
+                        return _normalize_calver(ver)
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            pass
+        # Check pipx
+        try:
+            r = subprocess.run(
+                ["pipx", "list", "--short"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            if r.returncode == 0:
+                for line in r.stdout.splitlines():
+                    if line.startswith("claude-updater "):
                         ver = line.split()[-1].lstrip("v")
                         return _normalize_calver(ver)
         except (subprocess.TimeoutExpired, FileNotFoundError):
@@ -53,7 +104,9 @@ class ClaudeUpdaterAdapter(ToolAdapter):
 
     def get_latest_version(self) -> str:
         try:
-            with urlopen("https://pypi.org/pypi/claude-updater/json", timeout=10) as resp:
+            with urlopen(
+                "https://pypi.org/pypi/claude-updater/json", timeout=10
+            ) as resp:
                 data = json.loads(resp.read())
                 return data["info"]["version"]
         except (URLError, json.JSONDecodeError, KeyError, OSError):
@@ -66,10 +119,19 @@ class ClaudeUpdaterAdapter(ToolAdapter):
         return gh_get_releases("sussdorff/claude-updater", limit)
 
     def apply_update(self) -> bool:
+        method = _detect_install_method()
+        if method == "uv":
+            cmd = ["uv", "tool", "upgrade", "claude-updater"]
+        elif method == "pipx":
+            cmd = ["pipx", "upgrade", "claude-updater"]
+        else:
+            cmd = ["pip", "install", "--upgrade", "claude-updater"]
         try:
             r = subprocess.run(
-                ["uv", "tool", "upgrade", "claude-updater"],
-                capture_output=True, text=True, timeout=120,
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=120,
             )
             return r.returncode == 0
         except (subprocess.TimeoutExpired, FileNotFoundError):
