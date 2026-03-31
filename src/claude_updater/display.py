@@ -10,6 +10,7 @@ from claude_updater.adapters.base import VersionInfo
 # ANSI colors (disabled when NO_COLOR is set)
 _no_color = os.environ.get("NO_COLOR") is not None
 
+
 # Use ASCII fallback for terminals that can't handle Unicode chars (e.g. Windows cp1252)
 def _safe_char(unicode_char: str, ascii_fallback: str) -> str:
     try:
@@ -18,14 +19,17 @@ def _safe_char(unicode_char: str, ascii_fallback: str) -> str:
     except (UnicodeEncodeError, LookupError):
         return ascii_fallback
 
+
 _HLINE = _safe_char("─", "-")
 _BULLET = _safe_char("●", "*")
 _CHECK = _safe_char("✓", "+")
 _ARROW = _safe_char("→", "->")
 _WARN = _safe_char("⚠", "!")
 
+
 def _c(code: str) -> str:
     return "" if _no_color else code
+
 
 RED = _c("\033[0;31m")
 GREEN = _c("\033[0;32m")
@@ -77,7 +81,9 @@ def display_changelogs(results: list[VersionInfo]) -> None:
                 print(f"{BOLD}Release Notes{NC}")
                 shown = True
             print(f"{DIM}{_HLINE * 40}{NC}")
-            print(f"{CYAN}{info.tool_name}{NC} {info.installed_version} {_ARROW}{info.latest_version}")
+            print(
+                f"{CYAN}{info.tool_name}{NC} {info.installed_version} {_ARROW}{info.latest_version}"
+            )
             print()
             # Indent and dim the changelog body
             for line in info.changelog_delta.splitlines():
@@ -97,14 +103,18 @@ def display_release_notes(
         return
 
     print()
-    print(f"{BOLD}Release Notes{NC} {DIM}(last {days} day{'s' if days != 1 else ''}){NC}")
+    print(
+        f"{BOLD}Release Notes{NC} {DIM}(last {days} day{'s' if days != 1 else ''}){NC}"
+    )
 
     for key, releases in filtered.items():
         name = adapter_names.get(key, key)
         print(f"{DIM}{_HLINE * 40}{NC}")
         print(f"{CYAN}{name}{NC}")
         for release in releases:
-            print(f"\n  {BOLD}{release['version']}{NC} {DIM}({release.get('date', '?')}){NC}")
+            print(
+                f"\n  {BOLD}{release['version']}{NC} {DIM}({release.get('date', '?')}){NC}"
+            )
             if release.get("body"):
                 for line in release["body"].splitlines():
                     print(f"  {line}")
@@ -148,6 +158,7 @@ def prompt_for_update(timeout: int = 15) -> str:
             answer = "".join(chars).strip().lower()
         else:
             import select
+
             ready, _, _ = select.select([sys.stdin], [], [], timeout)
             if ready:
                 answer = sys.stdin.readline().strip().lower()
@@ -168,24 +179,36 @@ def prompt_for_update(timeout: int = 15) -> str:
 def warn_running_instances() -> None:
     """Warn if multiple Claude instances are running."""
     import subprocess
+
     try:
         if sys.platform == "win32":
             r = subprocess.run(
                 ["tasklist", "/FI", "IMAGENAME eq claude.exe", "/NH"],
-                capture_output=True, text=True, timeout=5,
+                capture_output=True,
+                text=True,
+                timeout=5,
+                encoding="utf-8",
+                errors="replace",
             )
             # Each running instance produces a line with the process name
+            stdout = r.stdout or ""
             pids = [
-                line for line in r.stdout.strip().splitlines()
+                line
+                for line in stdout.strip().splitlines()
                 if "claude" in line.lower() and "INFO:" not in line
             ]
         else:
             r = subprocess.run(
                 ["pgrep", "-f", "claude"],
-                capture_output=True, text=True, timeout=5,
+                capture_output=True,
+                text=True,
+                timeout=5,
             )
-            pids = [p for p in r.stdout.strip().splitlines() if p]
+            stdout = r.stdout or ""
+            pids = [p for p in stdout.strip().splitlines() if p]
         if len(pids) > 1:
-            print(f"{YELLOW}{_WARN} {len(pids)} Claude instances running - restart them after updates{NC}")
-    except (subprocess.TimeoutExpired, FileNotFoundError):
+            print(
+                f"{YELLOW}{_WARN} {len(pids)} Claude instances running - restart them after updates{NC}"
+            )
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
         pass
