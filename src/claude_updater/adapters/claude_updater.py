@@ -120,19 +120,32 @@ class ClaudeUpdaterAdapter(ToolAdapter):
 
     def apply_update(self) -> bool:
         method = _detect_install_method()
+
+        # Try PyPI upgrade first (works for published releases)
         if method == "uv":
-            cmd = ["uv", "tool", "upgrade", "claude-updater"]
+            cmds = [["uv", "tool", "upgrade", "claude-updater"]]
         elif method == "pipx":
-            cmd = ["pipx", "upgrade", "claude-updater"]
+            cmds = [["pipx", "upgrade", "claude-updater"]]
         else:
-            cmd = ["pip", "install", "--upgrade", "claude-updater"]
-        try:
-            r = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=120,
-            )
-            return r.returncode == 0
-        except (subprocess.TimeoutExpired, FileNotFoundError):
-            return False
+            cmds = [["pip", "install", "--upgrade", "claude-updater"]]
+
+        # For pipx/uv: if PyPI upgrade fails (e.g. installed from local path),
+        # try reinstall from PyPI as fallback
+        if method == "pipx":
+            cmds.append(["pipx", "install", "--force", "claude-updater"])
+        elif method == "uv":
+            cmds.append(["uv", "tool", "install", "--force", "claude-updater"])
+
+        for cmd in cmds:
+            try:
+                r = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=120,
+                )
+                if r.returncode == 0:
+                    return True
+            except (subprocess.TimeoutExpired, FileNotFoundError):
+                continue
+        return False
